@@ -1,0 +1,12 @@
+{application, carthage,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { carthage_app, []}},
+  {env, []}
+ ]}.
