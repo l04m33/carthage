@@ -8,6 +8,17 @@
     terminate/2,
     code_change/3]).
 
+-record(login_state, {
+        login_handler,
+        handler_state,
+        client_handler,
+        client_opts,
+
+        socket,
+        transport,
+        tags
+       }).
+
 
 start_link(Ref, Socket, Transport, Opts) ->
     proc_lib:start_link(?MODULE, init, [Ref, Socket, Transport, Opts]).
@@ -32,7 +43,16 @@ init(Ref, Socket, Transport, Opts) ->
     PacketHeaderLen = carthage_config:get(packet_header_length),
     ok = Transport:setopts(Socket, [{packet, PacketHeaderLen}, {active, once}]),
 
-    State = {LoginHandler, HandlerState, ClientHandler, ClientOpts},
+    State = #login_state{
+        login_handler = LoginHandler,
+        handler_state = HandlerState,
+        client_handler = ClientHandler,
+        client_opts = ClientOpts,
+            
+        socket = Socket,
+        transport = Transport,
+        tags = Transport:messages()
+    },
     gen_server:enter_loop(?MODULE, [], State).
 
 handle_info(todo, State) ->
