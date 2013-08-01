@@ -3,4 +3,5 @@ deps
 .eunit
 *.swp
 rel/carthage
+debug.config
 
