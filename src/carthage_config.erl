@@ -11,10 +11,6 @@ get(Key) ->
                 default(Key)
     end.
 
-default(listening_port) ->
-    9999;
-default(number_of_acceptors) ->
-    10;
 default(packet_header_length) ->
     2;
 default(_) ->
