@@ -18,16 +18,22 @@ client_start_ack(Ref) ->
     end.
 
 
-init(Ref, Socket, Transport, _Opts) ->
+init(Ref, Socket, Transport, Opts) ->
     erlang:process_flag(trap_exit, true),
     ok = proc_lib:init_ack({ok, self()}),
     ok = ranch:accept_ack(Ref),
 
+    LoginHandler    = proplists:get_value(login_handler, Opts),
+    LoginOpts       = proplists:get_value(login_opts, Opts, []),
+    ClientHandler   = proplists:get_value(client_handler, Opts),
+    ClientOpts      = proplists:get_value(client_opts, Opts, []),
+
+    HandlerState = LoginHandler:init({Socket, Transport}, LoginOpts),
     PacketHeaderLen = carthage_config:get(packet_header_length),
     ok = Transport:setopts(Socket, [{packet, PacketHeaderLen}, {active, once}]),
 
-    NewState = todo,
-    gen_server:enter_loop(?MODULE, [], NewState).
+    State = {LoginHandler, HandlerState, ClientHandler, ClientOpts},
+    gen_server:enter_loop(?MODULE, [], State).
 
 handle_info(todo, State) ->
     {noreply, State}.

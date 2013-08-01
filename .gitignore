@@ -2,6 +2,7 @@ ebin
 deps
 .eunit
 *.swp
-rel/carthage
+erl_crash.dump
 debug.config
+rel/carthage
 

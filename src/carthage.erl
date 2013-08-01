@@ -1,8 +1,9 @@
 -module(carthage).
 
--export([start/4]).
+-export([start/6]).
 
-start(LoginHandler, ClientHandler, ListenPort, NumAcceptors) ->
+start(LoginHandler, ClientHandler, ListenPort,
+      NumAcceptors, LoginOpts, ClientOpts) ->
     ok = ensure_started(ranch),
     ok = ensure_started(carthage),
 
@@ -16,7 +17,8 @@ start(LoginHandler, ClientHandler, ListenPort, NumAcceptors) ->
 
     RanchRet = ranch:start_listener(ServerID, NumAcceptors,
             ranch_tcp, [{port, ListenPort}], carthage_login,
-            [{login_handler, LoginHandler}, {client_handler, ClientHandler}]),
+            [{login_handler, LoginHandler}, {client_handler, ClientHandler},
+             {login_opts, LoginOpts}, {client_opts, ClientOpts}]),
     case RanchRet of
         {ok, _} ->
             ok;
