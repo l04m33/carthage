@@ -48,15 +48,42 @@ init(Ref, Socket, Transport, Opts) ->
         handler_state = HandlerState,
         client_handler = ClientHandler,
         client_opts = ClientOpts,
-            
+
         socket = Socket,
         transport = Transport,
         tags = Transport:messages()
     },
     gen_server:enter_loop(?MODULE, [], State).
 
-handle_info(todo, State) ->
-    {noreply, State}.
+handle_info({Ok, Socket, Data}, State = #login_state{socket = Socket, tags = {Ok, _, _}}) ->
+    #login_state{
+        login_handler = LoginHandler,
+        handler_state = HandlerState
+    } = State,
+    NHandlerState = LoginHandler:network_message(Data, HandlerState),
+
+    Transport = State#login_state.transport,
+    ok = Transport:setopts(Socket, [{active, once}]),
+    {noreply, State#login_state{handler_state = NHandlerState}};
+
+handle_info({Closed, Socket}, State = #login_state{socket = Socket, tags = {_, Closed, _}}) ->
+    #login_state{
+        login_handler = LoginHandler,
+        handler_state = HandlerState
+    } = State,
+    NHandlerState = LoginHandler:socket_closed(HandlerState),
+    {stop, normal, State#login_state{handler_state = NHandlerState}};
+
+handle_info({Error, Socket, Reason}, State = #login_state{socket = Socket, tags = {_, _, Error}}) ->
+    #login_state{
+        login_handler = LoginHandler,
+        handler_state = HandlerState
+    } = State,
+    NHandlerState = LoginHandler:socket_error(Reason, HandlerState),
+
+    Transport = State#login_state.transport,
+    Transport:close(Socket),
+    {stop, normal, State#login_state{handler_state = NHandlerState}}.
 
 terminate(_Reason, _State) ->
     todo.
