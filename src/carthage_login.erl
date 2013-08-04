@@ -71,6 +71,8 @@ handle_info({Ok, Socket, Data}, State = #login_state{socket = Socket, tags = {Ok
     #login_state{
         login_handler = LoginHandler,
         handler_state = HandlerState,
+        client_handler = ClientHandler,
+        client_opts = ClientOpts,
         transport = Transport
     } = State,
 
@@ -80,15 +82,24 @@ handle_info({Ok, Socket, Data}, State = #login_state{socket = Socket, tags = {Ok
     },
     case LoginHandler:network_message(Req, HandlerState) of
         {ok, NHandlerState} ->
-            Transport = State#login_state.transport,
             ok = Transport:setopts(Socket, [{active, once}]),
             {noreply, State#login_state{handler_state = NHandlerState}};
         {stop, Reason, NHandlerState} ->
             Transport:close(Socket),
             {stop, Reason, State#login_state{handler_state = NHandlerState}};
-        {done, _ClientInput} ->
-            %% TODO: Start client process
-            todo,
+        {done, ClientInput} ->
+            StartRef = make_ref(),
+            FullOpts = [{client_input, ClientInput} | ClientOpts],
+            case carthage_client:mutex_start(
+                    StartRef, Socket, Transport, ClientHandler, FullOpts) of
+                {ok, ClientPID} ->
+                    release_client_process(ClientPID, StartRef, Socket, Transport);
+                {error, not_found} ->
+                    %% Race condition with other login processes, no big deal
+                    void;
+                Other ->
+                    error_logger:error_report([{"Failed to start client process", Other}])
+            end,
             {stop, normal, State}
     end;
 
@@ -135,4 +146,9 @@ terminate(Reason, State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+
+release_client_process(ClientPID, StartRef, Socket, Transport) ->
+    Transport:controlling_process(Socket, ClientPID),
+    ClientPID ! {go, StartRef}.
 
