@@ -24,7 +24,8 @@ start_link(Ref, Socket, Transport, ClientHandler, Opts) ->
     proc_lib:start_link(?MODULE, init, [Ref, Socket, Transport, ClientHandler, Opts]).
 
 start_by_sup(ID, Ref, Socket, Transport, ClientHandler, Opts) ->
-    supervisor:start_child(carthage_client_sup,
+    ServerID = ClientHandler,
+    supervisor:start_child(ServerID,
         {ID, {?MODULE, start_link, [Ref, Socket, Transport, ClientHandler, Opts]},
          temporary, 5000, worker, [?MODULE]}).
 
