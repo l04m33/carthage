@@ -31,11 +31,12 @@ start_by_sup(ID, Ref, Socket, Transport, ClientHandler, Opts) ->
 
 mutex_start(Ref, Socket, Transport, ClientHandler, Opts) ->
     ID = ClientHandler:init_client_id(Opts),
+    ServerID = ClientHandler,
     case start_by_sup(ID, Ref, Socket, Transport, ClientHandler, Opts) of
         {ok, _} = Ret ->
             Ret;
         {error, {already_started, _OtherPID}} ->
-            case supervisor:terminate_child(carthage_client_sup, ID) of
+            case supervisor:terminate_child(ServerID, ID) of
                 ok ->
                     case start_by_sup(ID, Ref, Socket, Transport, ClientHandler, Opts) of
                         {ok, _} = Ret ->
