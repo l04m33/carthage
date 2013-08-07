@@ -17,6 +17,6 @@ init(InitReq, Opts) ->
 network_message(Req, State) ->
     Data = carthage_req:get_data(Req),
     io:format("Data = ~p~n", [Data]),
-    carthage_req:send(Req, Data),
+    carthage_req:send(Req, <<Data:32>>),
     {ok, State}.
 
