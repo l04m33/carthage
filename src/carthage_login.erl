@@ -15,6 +15,8 @@
         handler_state,
         client_handler,
         client_opts,
+        middlewares,
+        env,
 
         socket,
         transport,
@@ -40,6 +42,8 @@ init(Ref, Socket, Transport, Opts) ->
     LoginOpts       = proplists:get_value(login_opts, Opts, []),
     ClientHandler   = proplists:get_value(client_handler, Opts),
     ClientOpts      = proplists:get_value(client_opts, Opts, []),
+    Middlewares     = proplists:get_value(middlewares, Opts, []),
+    Env             = proplists:get_value(env, Opts, []),
 
     PacketHeaderLen = carthage_config:get(packet_header_length),
     %% TODO: should explicitly handle errors here
@@ -55,6 +59,8 @@ init(Ref, Socket, Transport, Opts) ->
                 handler_state = HandlerState,
                 client_handler = ClientHandler,
                 client_opts = ClientOpts,
+                middlewares = Middlewares,
+                env = Env,
 
                 socket = Socket,
                 transport = Transport,
@@ -73,34 +79,45 @@ handle_info({Ok, Socket, Data}, State = #login_state{socket = Socket, tags = {Ok
         handler_state = HandlerState,
         client_handler = ClientHandler,
         client_opts = ClientOpts,
+        middlewares = Middlewares,
+        env = Env0,
         transport = Transport
     } = State,
 
-    Req = #nwk_req{
+    Req0 = #nwk_req{
         sock = {Socket, Transport},
         data = Data
     },
-    case LoginHandler:network_message(Req, HandlerState) of
-        {ok, NHandlerState} ->
-            ok = Transport:setopts(Socket, [{active, once}]),
-            {noreply, State#login_state{handler_state = NHandlerState}};
-        {stop, Reason, NHandlerState} ->
+
+    case carthage_middleware:execute(Middlewares, Req0, [{context, login} | Env0]) of
+        {stop, Reason, Env} ->
             Transport:close(Socket),
-            {stop, Reason, State#login_state{handler_state = NHandlerState}};
-        {done, ClientInput} ->
-            StartRef = make_ref(),
-            FullOpts = [{client_input, ClientInput} | ClientOpts],
-            case carthage_client:mutex_start(
-                    StartRef, Socket, Transport, ClientHandler, FullOpts) of
-                {ok, ClientPID} ->
-                    release_client_process(ClientPID, StartRef, Socket, Transport);
-                {error, not_found} ->
-                    %% Race condition with other login processes, no big deal
-                    void;
-                Other ->
-                    error_logger:error_report([{"Failed to start client process", Other}])
-            end,
-            {stop, normal, State}
+            {stop, Reason, State#login_state{env = Env}};
+        {ok, Req, Env} ->
+            case LoginHandler:network_message(Req, HandlerState) of
+                {ok, NHandlerState} ->
+                    ok = Transport:setopts(Socket, [{active, once}]),
+                    {noreply, State#login_state{handler_state = NHandlerState, env = Env}};
+                {stop, Reason, NHandlerState} ->
+                    Transport:close(Socket),
+                    {stop, Reason, State#login_state{handler_state = NHandlerState, env = Env}};
+                {done, ClientInput} ->
+                    StartRef = make_ref(),
+                    FullOpts = [{client_input, ClientInput},
+                                {middlewares, Middlewares},
+                                {env, Env} | ClientOpts],
+                    case carthage_client:mutex_start(
+                            StartRef, Socket, Transport, ClientHandler, FullOpts) of
+                        {ok, ClientPID} ->
+                            release_client_process(ClientPID, StartRef, Socket, Transport);
+                        {error, not_found} ->
+                            %% Race condition with other login processes, no big deal
+                            void;
+                        Other ->
+                            error_logger:error_report([{"Failed to start client process", Other}])
+                    end,
+                    {stop, normal, State#login_state{env = Env}}
+            end
     end;
 
 handle_info({Closed, Socket}, State = #login_state{socket = Socket, tags = {_, Closed, _}}) ->

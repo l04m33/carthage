@@ -14,6 +14,8 @@
 -record(client_state, {
         client_handler,
         handler_state,
+        middlewares,
+        env,
 
         socket,
         transport,
@@ -51,12 +53,16 @@ mutex_start(Ref, Socket, Transport, ClientHandler, Opts) ->
             Other
     end.
 
-init(StartRef, Socket, Transport, ClientHandler, Opts) ->
+init(StartRef, Socket, Transport, ClientHandler, Opts0) ->
     erlang:process_flag(trap_exit, true),
     ok = proc_lib:init_ack({ok, self()}),
     ok = carthage_login:client_start_ack(StartRef),
 
     ok = Transport:setopts(Socket, [{active, once}]),
+
+    Middlewares = proplists:get_value(middlewares, Opts0, []),
+    Env = proplists:get_value(env, Opts0, []),
+    Opts = proplists:delete(env, proplists:delete(middlewares, Opts0)),
 
     InitReq = #nwk_req{
         sock = {Socket, Transport}
@@ -66,6 +72,8 @@ init(StartRef, Socket, Transport, ClientHandler, Opts) ->
             State = #client_state{
                 client_handler = ClientHandler,
                 handler_state = HandlerState,
+                middlewares = Middlewares,
+                env = Env,
 
                 socket = Socket,
                 transport = Transport,
@@ -82,20 +90,29 @@ handle_info({Ok, Socket, Data}, State = #client_state{socket = Socket, tags = {O
     #client_state{
         client_handler = ClientHandler,
         handler_state = HandlerState,
-        transport = Transport
+        transport = Transport,
+        middlewares = Middlewares,
+        env = Env0
     } = State,
 
-    Req = #nwk_req{
+    Req0 = #nwk_req{
         sock = {Socket, Transport},
         data = Data
     },
-    case ClientHandler:network_message(Req, HandlerState) of
-        {ok, NHandlerState} ->
-            ok = Transport:setopts(Socket, [{active, once}]),
-            {noreply, State#client_state{handler_state = NHandlerState}};
-        {stop, Reason, NHandlerState} ->
+
+    case carthage_middleware:execute(Middlewares, Req0, [{context, client} | Env0]) of
+        {stop, Reason, Env} ->
             Transport:close(Socket),
-            {stop, Reason, State#client_state{handler_state = NHandlerState}}
+            {stop, Reason, State#client_state{env = Env}};
+        {ok, Req, Env} ->
+            case ClientHandler:network_message(Req, HandlerState) of
+                {ok, NHandlerState} ->
+                    ok = Transport:setopts(Socket, [{active, once}]),
+                    {noreply, State#client_state{handler_state = NHandlerState, env = Env}};
+                {stop, Reason, NHandlerState} ->
+                    Transport:close(Socket),
+                    {stop, Reason, State#client_state{handler_state = NHandlerState, env = Env}}
+            end
     end;
 
 handle_info({Closed, Socket}, State = #client_state{socket = Socket, tags = {_, Closed, _}}) ->
