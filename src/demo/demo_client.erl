@@ -5,8 +5,8 @@
 -export([network_message/2]).
 
 init_client_id(Opts) ->
-    _ClientInput = proplists:get_value(client_input, Opts),
-    0.
+    PeerName = proplists:get_value(client_input, Opts),
+    PeerName.
 
 init(InitReq, Opts) ->
     ClientInput = proplists:get_value(client_input, Opts),

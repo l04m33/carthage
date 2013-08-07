@@ -13,8 +13,7 @@ init(InitReq, _Opts) ->
 network_message(Req, _State) ->
     Data = carthage_req:get_data(Req),
     carthage_req:send(Req, Data),
-    io:format("~p~n", [Data]),
-    {done, Data}.
+    {done, carthage_req:get_peername(Req)}.
 
 socket_closed(State) ->
     io:format("socket_closed~n"),
