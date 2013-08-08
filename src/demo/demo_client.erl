@@ -8,15 +8,18 @@ init_client_id(Opts) ->
     PeerName = proplists:get_value(client_input, Opts),
     PeerName.
 
-init(InitReq, Opts) ->
+init(_InitReq, Opts) ->
     ClientInput = proplists:get_value(client_input, Opts),
     io:format("#### ClientInput = ~p~n", [ClientInput]),
-    carthage_req:send(InitReq, <<"Hello Client! ">>),
     {ok, []}.
 
 network_message(Req, State) ->
-    Data = carthage_req:get_data(Req),
-    io:format("#### Data = ~p~n", [Data]),
-    carthage_req:send(Req, <<Data:32>>),
+    TimeZone = carthage_req:get_data(Req),
+    io:format("#### TimeZone = ~p~n", [TimeZone]),
+    GMT = calendar:universal_time(),
+    GMTSecs = calendar:datetime_to_gregorian_seconds(GMT),
+    RemoteSecs = GMTSecs + TimeZone * 60 * 60,
+    RemoteDateTime = calendar:gregorian_seconds_to_datetime(RemoteSecs),
+    carthage_req:send(Req, RemoteDateTime),
     {ok, State}.
 

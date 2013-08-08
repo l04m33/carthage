@@ -7,11 +7,16 @@ on_request(Req, Env) ->
     io:format("========= on_request =========~n"),
     io:format("Req = ~p~n", [Req]),
     io:format("Env = ~p~n", [Env]),
+
     case carthage_middleware:get_context(Env) of
         client ->
-            <<Number:32, _/binary>> = carthage_req:get_data(Req),
-            NReq = carthage_req:set_data(Number, Req),
-            {ok, NReq, Env};
+            case carthage_req:get_data(Req) of
+                <<TimeZone:8/signed>> when TimeZone >= -12 andalso TimeZone =< 12 ->
+                    NReq = carthage_req:set_data(TimeZone, Req),
+                    {ok, NReq, Env};
+                _ ->
+                    {stop, illegal_request, Env}
+            end;
         _ ->
             {ok, Req, Env}
     end.
@@ -21,5 +26,12 @@ on_send(Data, Req, Env) ->
     io:format("Req = ~p~n", [Req]),
     io:format("Env = ~p~n", [Env]),
     io:format("Data = ~p~n", [Data]),
-    {ok, Data}.
+
+    case carthage_middleware:get_context(Env) of
+        client ->
+            NData = io_lib:format(<<"~w">>, [Data]),
+            {ok, NData};
+        _ ->
+            {ok, Data}
+    end.
 
