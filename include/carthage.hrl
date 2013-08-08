@@ -3,7 +3,9 @@
 
 -record(nwk_req, {
         sock,
-        data
+        data,
+
+        on_send
        }).
 
 -endif.

@@ -10,13 +10,13 @@ init_client_id(Opts) ->
 
 init(InitReq, Opts) ->
     ClientInput = proplists:get_value(client_input, Opts),
-    io:format("ClientInput = ~p~n", [ClientInput]),
+    io:format("#### ClientInput = ~p~n", [ClientInput]),
     carthage_req:send(InitReq, <<"Hello Client! ">>),
     {ok, []}.
 
 network_message(Req, State) ->
     Data = carthage_req:get_data(Req),
-    io:format("Data = ~p~n", [Data]),
+    io:format("#### Data = ~p~n", [Data]),
     carthage_req:send(Req, <<Data:32>>),
     {ok, State}.
 

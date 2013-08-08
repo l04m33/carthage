@@ -49,9 +49,11 @@ init(Ref, Socket, Transport, Opts) ->
     %% TODO: should explicitly handle errors here
     ok = Transport:setopts(Socket, [{packet, PacketHeaderLen}, {active, once}]),
 
-    InitReq = #nwk_req{
-        sock = {Socket, Transport}
-    },
+    InitReq = carthage_req:new({Socket, Transport}, undefined,
+            fun(DataToSend, Req) ->
+                carthage_middleware:on_send(
+                        Middlewares, DataToSend, Req, Env, login)
+            end),
     case LoginHandler:init(InitReq, LoginOpts) of
         {ok, HandlerState} ->
             State = #login_state{
@@ -84,12 +86,13 @@ handle_info({Ok, Socket, Data}, State = #login_state{socket = Socket, tags = {Ok
         transport = Transport
     } = State,
 
-    Req0 = #nwk_req{
-        sock = {Socket, Transport},
-        data = Data
-    },
+    Req0 = carthage_req:new({Socket, Transport}, Data,
+            fun(DataToSend, Req) ->
+                carthage_middleware:on_send(
+                        Middlewares, DataToSend, Req, Env0, login)
+            end),
 
-    case carthage_middleware:execute(Middlewares, Req0, [{context, login} | Env0]) of
+    case carthage_middleware:on_request(Middlewares, Req0, Env0, login) of
         {stop, Reason, Env} ->
             Transport:close(Socket),
             {stop, Reason, State#login_state{env = Env}};
