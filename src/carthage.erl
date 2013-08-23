@@ -24,7 +24,14 @@ start({LoginHandler, LoginOpts},
              {middlewares, Middlewares}, {env, Env}]),
     case RanchRet of
         {ok, _} ->
-            ok;
+            case carthage_client_registry:new_registry(ServerID) of
+                ok ->
+                    ok;
+                Error ->
+                    supervisor:terminate_child(carthage_sup, ServerID),
+                    supervisor:delete_child(carthage_sup, ServerID),
+                    Error
+            end;
         Error ->
             supervisor:terminate_child(carthage_sup, ServerID),
             supervisor:delete_child(carthage_sup, ServerID),

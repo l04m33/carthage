@@ -2,16 +2,17 @@
 
 -include("carthage.hrl").
 
--export([start_link/5]).
+-export([start_link/6]).
 -export([start_by_sup/6]).
 -export([mutex_start/5]).
 
--export([init/5]).
+-export([init/6]).
 -export([handle_info/2]).
 -export([terminate/2]).
 -export([code_change/3]).
 
 -record(client_state, {
+        client_id,
         client_handler,
         handler_state,
         middlewares,
@@ -22,13 +23,13 @@
         tags
        }).
 
-start_link(Ref, Socket, Transport, ClientHandler, Opts) ->
-    proc_lib:start_link(?MODULE, init, [Ref, Socket, Transport, ClientHandler, Opts]).
+start_link(Ref, ClientID, Socket, Transport, ClientHandler, Opts) ->
+    proc_lib:start_link(?MODULE, init, [Ref, ClientID, Socket, Transport, ClientHandler, Opts]).
 
 start_by_sup(ID, Ref, Socket, Transport, ClientHandler, Opts) ->
     ServerID = ClientHandler,
     supervisor:start_child(ServerID,
-        {ID, {?MODULE, start_link, [Ref, Socket, Transport, ClientHandler, Opts]},
+        {ID, {?MODULE, start_link, [Ref, ID, Socket, Transport, ClientHandler, Opts]},
          temporary, 5000, worker, [?MODULE]}).
 
 mutex_start(Ref, Socket, Transport, ClientHandler, Opts) ->
@@ -53,7 +54,7 @@ mutex_start(Ref, Socket, Transport, ClientHandler, Opts) ->
             Other
     end.
 
-init(StartRef, Socket, Transport, ClientHandler, Opts0) ->
+init(StartRef, ClientID, Socket, Transport, ClientHandler, Opts0) ->
     erlang:process_flag(trap_exit, true),
     ok = proc_lib:init_ack({ok, self()}),
     ok = carthage_login:client_start_ack(StartRef),
@@ -61,9 +62,7 @@ init(StartRef, Socket, Transport, ClientHandler, Opts0) ->
     try
         ok = Transport:setopts(Socket, [{active, once}])
     catch ErrType : ErrCode ->
-        error_logger:error_report([{ErrType, ErrCode},
-                                   {stacktrace, erlang:get_stacktrace()}]),
-        exit({ErrType, ErrCode})
+        eject(ErrType, ErrCode, erlang:get_stacktrace())
     end,
 
     Middlewares = proplists:get_value(middlewares, Opts0, []),
@@ -78,6 +77,7 @@ init(StartRef, Socket, Transport, ClientHandler, Opts0) ->
     case (catch ClientHandler:init(InitReq, Opts)) of
         {ok, HandlerState} ->
             State = #client_state{
+                client_id = ClientID,
                 client_handler = ClientHandler,
                 handler_state = HandlerState,
                 middlewares = Middlewares,
@@ -87,13 +87,23 @@ init(StartRef, Socket, Transport, ClientHandler, Opts0) ->
                 transport = Transport,
                 tags = Transport:messages()
             },
+
+            try
+                carthage_client_registry:login(ClientHandler, ClientID, self())
+            catch ErrType3 : ErrCode3 ->
+                %% ClientHandler:init(...) already succeeded, need some clean-up here
+                terminate(login_error, State),
+                eject(ErrType3, ErrCode3, erlang:get_stacktrace())
+            end,
+
             gen_server:enter_loop(?MODULE, [], State);
+
         {stop, Reason} ->
             {stop, Reason};
-        {'EXIT', {ErrCode2, Stacktrace}} = Error->
-            error_logger:error_report([{error, ErrCode2},
-                                       {stacktrace, Stacktrace}]),
-            Error;
+
+        {'EXIT', {ErrCode2, Stacktrace}} ->
+            eject(error, ErrCode2, Stacktrace);
+
         Other ->
             Other
     end.
@@ -159,9 +169,11 @@ handle_info({Error, Socket, Reason}, State = #client_state{socket = Socket, tags
 
 terminate(Reason, State) ->
     #client_state{
+        client_id = ClientID,
         client_handler = ClientHandler,
         handler_state = HandlerState
     } = State,
+    catch carthage_client_registry:logout(ClientHandler, ClientID, self()),
     case erlang:function_exported(ClientHandler, terminate, 2) of
         true ->
             ok = ClientHandler:terminate(Reason, HandlerState);
@@ -171,4 +183,9 @@ terminate(Reason, State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+
+eject(ErrType, ErrCode, Stacktrace) ->
+    error_logger:error_report([{ErrType, ErrCode}, {stacktrace, Stacktrace}]),
+    exit({ErrType, ErrCode}).
 

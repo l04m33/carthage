@@ -46,15 +46,20 @@ init(Ref, Socket, Transport, Opts) ->
     Env             = proplists:get_value(env, Opts, []),
 
     PacketHeaderLen = carthage_config:get(packet_header_length),
-    %% TODO: should explicitly handle errors here
-    ok = Transport:setopts(Socket, [{packet, PacketHeaderLen}, {active, once}]),
+    try
+        ok = Transport:setopts(Socket, [{packet, PacketHeaderLen}, {active, once}])
+    catch ErrType : ErrCode ->
+        error_logger:error_report([{ErrType, ErrCode},
+                                   {stacktrace, erlang:get_stacktrace()}]),
+        exit({ErrType, ErrCode})
+    end,
 
     InitReq = carthage_req:new({Socket, Transport}, undefined,
             fun(DataToSend, Req) ->
                 carthage_middleware:on_send(
                         Middlewares, DataToSend, Req, Env, login)
             end),
-    case LoginHandler:init(InitReq, LoginOpts) of
+    case (catch LoginHandler:init(InitReq, LoginOpts)) of
         {ok, HandlerState} ->
             State = #login_state{
                 login_handler = LoginHandler,
@@ -71,6 +76,10 @@ init(Ref, Socket, Transport, Opts) ->
             gen_server:enter_loop(?MODULE, [], State);
         {stop, Reason} ->
             {stop, Reason};
+        {'EXIT', {ErrCode2, Stacktrace}} = Error->
+            error_logger:error_report([{error, ErrCode2},
+                                       {stacktrace, Stacktrace}]),
+            Error;
         Other ->
             Other
     end.
