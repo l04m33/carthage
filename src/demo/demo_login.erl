@@ -8,5 +8,6 @@ init(_InitReq, _Opts) ->
 
 network_message(Req, _State) ->
     _Data = carthage_req:get_data(Req),
-    {done, carthage_req:get_peername(Req)}.
+    {ok, PeerName} = carthage_req:get_peername(Req),
+    {done, PeerName}.
 

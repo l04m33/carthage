@@ -58,7 +58,13 @@ init(StartRef, Socket, Transport, ClientHandler, Opts0) ->
     ok = proc_lib:init_ack({ok, self()}),
     ok = carthage_login:client_start_ack(StartRef),
 
-    ok = Transport:setopts(Socket, [{active, once}]),
+    try
+        ok = Transport:setopts(Socket, [{active, once}])
+    catch ErrType : ErrCode ->
+        error_logger:error_report([{ErrType, ErrCode},
+                                   {stacktrace, erlang:get_stacktrace()}]),
+        exit({ErrType, ErrCode})
+    end,
 
     Middlewares = proplists:get_value(middlewares, Opts0, []),
     Env = proplists:get_value(env, Opts0, []),
@@ -69,7 +75,7 @@ init(StartRef, Socket, Transport, ClientHandler, Opts0) ->
                 carthage_middleware:on_send(
                         Middlewares, DataToSend, Req, Env, client)
             end),
-    case ClientHandler:init(InitReq, Opts) of
+    case (catch ClientHandler:init(InitReq, Opts)) of
         {ok, HandlerState} ->
             State = #client_state{
                 client_handler = ClientHandler,
@@ -84,6 +90,10 @@ init(StartRef, Socket, Transport, ClientHandler, Opts0) ->
             gen_server:enter_loop(?MODULE, [], State);
         {stop, Reason} ->
             {stop, Reason};
+        {'EXIT', {ErrCode2, Stacktrace}} = Error->
+            error_logger:error_report([{error, ErrCode2},
+                                       {stacktrace, Stacktrace}]),
+            Error;
         Other ->
             Other
     end.
