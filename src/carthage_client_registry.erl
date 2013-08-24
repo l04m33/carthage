@@ -2,11 +2,11 @@
 
 -behaviour(gen_server).
 
+-export([where_is/2]).
+-export([who_is/2]).
 -export([start_link/0]).
 -export([login/3]).
 -export([logout/3]).
--export([where_is/2]).
--export([who_is/2]).
 -export([new_registry/1]).
 -export([remove_registry/1]).
 
@@ -18,6 +18,31 @@
     terminate/2,
     code_change/3]).
 
+
+-spec where_is(ClientName, ClientID) -> undefined | pid() when
+        ClientName :: atom(),
+        ClientID :: term().
+where_is(ClientName, ClientID) when is_atom(ClientName) ->
+    TableName = ClientName,
+    case ets:lookup(TableName, ClientID) of
+        [] ->
+            undefined;
+        [{_, ClientPID}] ->
+            ClientPID
+    end.
+
+-spec who_is(ClientName, ClientPID) -> undefined | term() when
+        ClientName :: atom(),
+        ClientPID :: pid().
+who_is(ClientName, ClientPID) when is_atom(ClientName) andalso is_pid(ClientPID) ->
+    TableName = ClientName,
+    MirrorName = get_mirror_name(TableName),
+    case ets:lookup(MirrorName, ClientPID) of
+        [] ->
+            undefined;
+        [{_, ClientID}] ->
+            ClientID
+    end.
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -37,25 +62,6 @@ logout(ClientName, ClientID, ClientPID) when is_pid(ClientPID) ->
     ets:delete(TableName, ClientID),
     ets:delete(MirrorName, ClientPID),
     ok.
-
-where_is(ClientName, ClientID) when is_atom(ClientName) ->
-    TableName = ClientName,
-    case ets:lookup(TableName, ClientID) of
-        [] ->
-            undefined;
-        [{_, ClientPID}] ->
-            ClientPID
-    end.
-
-who_is(ClientName, ClientPID) when is_atom(ClientName) andalso is_pid(ClientPID) ->
-    TableName = ClientName,
-    MirrorName = get_mirror_name(TableName),
-    case ets:lookup(MirrorName, ClientPID) of
-        [] ->
-            undefined;
-        [{_, ClientID}] ->
-            ClientID
-    end.
 
 new_registry(ClientName) when is_atom(ClientName) ->
     gen_server:call(?MODULE, {new_registry, ClientName}).

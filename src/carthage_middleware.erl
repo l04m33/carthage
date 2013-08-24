@@ -1,8 +1,13 @@
 -module(carthage_middleware).
 
+-export([get_context/1]).
 -export([on_request/4]).
 -export([on_send/5]).
--export([get_context/1]).
+
+-spec get_context(Env) -> term() when
+        Env :: carthage:env().
+get_context(Env) ->
+    proplists:get_value(context, Env).
 
 on_request(Middlewares, Req, Env, Context) ->
     on_request(Middlewares, Req, [{context, Context} | Env]).
@@ -29,7 +34,4 @@ on_send([Middleware | RestMW], Data0, Req0, Env0) ->
     end;
 on_send([], Data, _Req, _Env0) ->
     {ok, Data}.
-
-get_context(Env) ->
-    proplists:get_value(context, Env).
 

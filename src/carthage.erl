@@ -2,6 +2,20 @@
 
 -export([start/5]).
 
+-type handler_opts() :: [{atom(), term()}].
+-type handler_spec() :: {module(), handler_opts()}.
+-type env() :: [{atom(), term()}].
+-type middleware_spec() :: {[module()], env()}.
+
+-export_type([env/0]).
+
+-spec start(LoginHandlerSpec, ClientHandlerSpec,
+            MiddlewareSpec, ListenPort, NumAcceptors) -> ok when
+        LoginHandlerSpec :: handler_spec(),
+        ClientHandlerSpec :: handler_spec(),
+        MiddlewareSpec :: middleware_spec(),
+        ListenPort :: non_neg_integer(),
+        NumAcceptors :: non_neg_integer().
 start({LoginHandler, LoginOpts},
       {ClientHandler, ClientOpts},
       {Middlewares, Env},
@@ -30,7 +44,7 @@ start({LoginHandler, LoginOpts},
                 Error ->
                     supervisor:terminate_child(carthage_sup, ServerID),
                     supervisor:delete_child(carthage_sup, ServerID),
-                    Error
+                    exit(Error)
             end;
         Error ->
             supervisor:terminate_child(carthage_sup, ServerID),
