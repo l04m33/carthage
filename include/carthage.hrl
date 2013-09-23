@@ -1,7 +1,7 @@
 -ifndef(__CARTHAGE_HRL__).
 -define(__CARTHAGE_HRL__, true).
 
--record(nwk_req, {
+-record(cthg_req, {
         sock,
         src_proc,
         reply_to,
