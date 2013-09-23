@@ -3,6 +3,8 @@
 -export([init_client_id/1]).
 -export([init/2]).
 -export([network_message/2]).
+-export([internal_call/2]).
+-export([internal_cast/2]).
 
 init_client_id(Opts) ->
     PeerName = proplists:get_value(client_input, Opts),
@@ -22,4 +24,17 @@ network_message(Req, State) ->
     RemoteDateTime = calendar:gregorian_seconds_to_datetime(RemoteSecs),
     carthage_req:send(Req, RemoteDateTime),
     {ok, State}.
+
+internal_call(Req, State) ->
+    TimeZone = carthage_req:get_data(Req),
+    io:format("#### TimeZone = ~p~n", [TimeZone]),
+    GMT = calendar:universal_time(),
+    GMTSecs = calendar:datetime_to_gregorian_seconds(GMT),
+    RemoteSecs = GMTSecs + TimeZone * 60 * 60,
+    RemoteDateTime = calendar:gregorian_seconds_to_datetime(RemoteSecs),
+    carthage_req:reply(Req, RemoteDateTime),
+    {ok, State}.
+
+internal_cast(Req, State) ->
+    internal_call(Req, State).
 

@@ -6,8 +6,13 @@
 -export([start_by_sup/6]).
 -export([mutex_start/5]).
 
+-export([call/2]).
+-export([cast/2]).
+
 -export([init/6]).
 -export([handle_info/2]).
+-export([handle_call/3]).
+-export([handle_cast/2]).
 -export([terminate/2]).
 -export([code_change/3]).
 
@@ -53,6 +58,18 @@ mutex_start(Ref, Socket, Transport, ClientHandler, Opts) ->
         Other ->
             Other
     end.
+
+call(PID, Data) when is_pid(PID) ->
+    gen_server:call(PID, {self(), Data});
+call({ClientName, ClientID}, Data) when is_atom(ClientName) ->
+    PID = carthage_client_registry:where_is(ClientName, ClientID),
+    gen_server:call(PID, {self(), Data}).
+
+cast(PID, Data) when is_pid(PID) ->
+    gen_server:cast(PID, {self(), Data});
+cast({ClientName, ClientID}, Data) when is_atom(ClientName) ->
+    PID = carthage_client_registry:where_is(ClientName, ClientID),
+    gen_server:cast(PID, {self(), Data}).
 
 init(StartRef, ClientID, Socket, Transport, ClientHandler, Opts0) ->
     erlang:process_flag(trap_exit, true),
@@ -165,6 +182,68 @@ handle_info({Error, Socket, Reason}, State = #client_state{socket = Socket, tags
         false ->
             Transport:close(Socket),
             {stop, normal, State}
+    end.
+
+handle_call({SrcProc, Data}, From, State) ->
+    #client_state{
+        client_handler = ClientHandler,
+        handler_state = HandlerState,
+        transport = Transport,
+        socket = Socket,
+        middlewares = Middlewares,
+        env = Env0
+    } = State,
+
+    Req0 = carthage_req:new(SrcProc, From, {Socket, Transport}, Data, 
+            fun(DataToSend, Req) ->
+                carthage_middleware:on_send(
+                        Middlewares, DataToSend, Req, Env0, client)
+            end,
+            fun(Reply, Req) ->
+                carthage_middleware:on_reply(
+                        Middlewares, Reply, Req, Env0, client)
+            end),
+    case carthage_middleware:on_call(Middlewares, Req0, Env0, client) of
+        {stop, Reason, Env} ->
+            Transport:close(Socket),
+            {stop, Reason, State#client_state{env = Env}};
+        {ok, Req, Env} ->
+            case ClientHandler:internal_call(Req, HandlerState) of
+                {ok, NHandlerState} ->
+                    {noreply, State#client_state{handler_state = NHandlerState, env = Env}};
+                {stop, Reason, NHandlerState} ->
+                    Transport:close(Socket),
+                    {stop, Reason, State#client_state{handler_state = NHandlerState, env = Env}}
+            end
+    end.
+
+handle_cast({SrcProc, Data}, State) ->
+    #client_state{
+        client_handler = ClientHandler,
+        handler_state = HandlerState,
+        transport = Transport,
+        socket = Socket,
+        middlewares = Middlewares,
+        env = Env0
+    } = State,
+
+    Req0 = carthage_req:new(SrcProc, {Socket, Transport}, Data, 
+            fun(DataToSend, Req) ->
+                carthage_middleware:on_send(
+                        Middlewares, DataToSend, Req, Env0, client)
+            end),
+    case carthage_middleware:on_cast(Middlewares, Req0, Env0, client) of
+        {stop, Reason, Env} ->
+            Transport:close(Socket),
+            {stop, Reason, State#client_state{env = Env}};
+        {ok, Req, Env} ->
+            case ClientHandler:internal_cast(Req, HandlerState) of
+                {ok, NHandlerState} ->
+                    {noreply, State#client_state{handler_state = NHandlerState, env = Env}};
+                {stop, Reason, NHandlerState} ->
+                    Transport:close(Socket),
+                    {stop, Reason, State#client_state{handler_state = NHandlerState, env = Env}}
+            end
     end.
 
 terminate(Reason, State) ->

@@ -20,6 +20,10 @@ start({LoginHandler, LoginOpts},
       {ClientHandler, ClientOpts},
       {Middlewares, Env},
       ListenPort, NumAcceptors) ->
+    {module, LoginHandler} = code:load_file(LoginHandler),
+    {module, ClientHandler} = code:load_file(ClientHandler),
+    _ = [{module, MW} = code:load_file(MW) || MW <- Middlewares],
+
     ok = ensure_started(ranch),
     ok = ensure_started(carthage),
 

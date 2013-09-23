@@ -2,6 +2,9 @@
 
 -export([on_request/2]).
 -export([on_send/3]).
+-export([on_call/2]).
+-export([on_reply/3]).
+-export([on_cast/2]).
 
 on_request(Req, Env) ->
     io:format("========= on_request =========~n"),
@@ -34,4 +37,32 @@ on_send(Data, Req, Env) ->
         _ ->
             {ok, Data}
     end.
+
+on_call(Req, Env) ->
+    io:format("=========  on_call  =========~n"),
+    io:format("Req = ~p~n", [Req]),
+    io:format("Env = ~p~n", [Env]),
+    io:format("context = ~p~n", [carthage_middleware:get_context(Env)]),
+    {ok, Req, Env}.
+
+on_reply(Reply, Req, Env) ->
+    io:format("=========  on_reply  =========~n"),
+    io:format("Req = ~p~n", [Req]),
+    io:format("Env = ~p~n", [Env]),
+    io:format("Reply = ~p~n", [Reply]),
+
+    case carthage_middleware:get_context(Env) of
+        client ->
+            NReply = io_lib:format(<<"~w">>, [Reply]),
+            {ok, NReply};
+        _ ->
+            {ok, Reply}
+    end.
+
+on_cast(Req, Env) ->
+    io:format("=========  on_cast  =========~n"),
+    io:format("Req = ~p~n", [Req]),
+    io:format("Env = ~p~n", [Env]),
+    io:format("context = ~p~n", [carthage_middleware:get_context(Env)]),
+    {ok, Req, Env}.
 
