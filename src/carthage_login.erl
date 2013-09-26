@@ -10,6 +10,34 @@
     terminate/2,
     code_change/3]).
 
+-callback init(Request, Options) -> Ret when
+        Request :: carthage_req:carthage_request(),
+        Options :: carthage:handler_opts(),
+        Ret :: {ok, HandlerState} | {stop, Reason},
+        HandlerState :: term(),
+        Reason :: term().
+
+-callback network_message(Request, HandlerState) -> Ret when
+        Request :: carthage_req:carthage_request(),
+        HandlerState :: term(),
+        Ret :: {ok, NewHandlerState} | {stop, Reason, NewHandlerState} | {done, ClientInput},
+        NewHandlerState :: term(),
+        Reason :: term(),
+        ClientInput :: term().
+
+-callback socket_closed(HandlerState) -> {ok, NewHandlerState} when
+        HandlerState :: term(),
+        NewHandlerState :: term().
+
+-callback socket_error(Reason, HandlerState) -> {ok, NewHandlerState} when
+        Reason :: inet:posix(),
+        HandlerState :: term(),
+        NewHandlerState :: term().
+
+-callback terminate(Reason, HandlerState) -> ok when
+        Reason :: term(),
+        HandlerState :: term().
+
 -record(login_state, {
         login_handler,
         handler_state,

@@ -17,6 +17,46 @@
 -export([code_change/3]).
 
 -type client_ident() :: pid() | {atom(), term()}.
+-type handler_state() :: term().
+-type stop_reason() :: term().
+-type message_ret() :: {ok, handler_state()} | {stop, stop_reason(), handler_state()}.
+
+-callback init_client_id(Options) -> ClientID when
+        Options :: carthage:handler_opts(),
+        ClientID :: term().
+
+-callback init(Request, Options) -> Ret when
+        Request :: carthage_req:carthage_request(),
+        Options :: carthage:handler_opts(),
+        Ret :: {ok, handler_state()} | {stop, stop_reason()}.
+
+-callback network_message(Request, HandlerState) -> Ret when
+        Request :: carthage_req:carthage_request(),
+        HandlerState :: handler_state(),
+        Ret :: message_ret().
+
+-callback internal_call(Request, HandlerState) -> Ret when
+        Request :: carthage_req:carthage_request(),
+        HandlerState :: handler_state(),
+        Ret :: message_ret().
+
+-callback internal_cast(Request, HandlerState) -> Ret when
+        Request :: carthage_req:carthage_request(),
+        HandlerState :: handler_state(),
+        Ret :: message_ret().
+
+-callback socket_closed(HandlerState) -> {ok, NewHandlerState} when
+        HandlerState :: handler_state(),
+        NewHandlerState :: handler_state().
+
+-callback socket_error(Reason, HandlerState) -> {ok, NewHandlerState} when
+        Reason :: inet:posix(),
+        HandlerState :: handler_state(),
+        NewHandlerState :: handler_state().
+
+-callback terminate(Reason, HandlerState) -> ok when
+        Reason :: term(),
+        HandlerState :: handler_state().
 
 -record(client_state, {
         client_id,

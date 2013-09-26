@@ -7,7 +7,7 @@
 -type env() :: [{atom(), term()}].
 -type middleware_spec() :: {[module()], env()}.
 
--export_type([env/0]).
+-export_type([env/0, handler_opts/0]).
 
 -spec start(LoginHandlerSpec, ClientHandlerSpec,
             MiddlewareSpec, ListenPort, NumAcceptors) -> ok when
