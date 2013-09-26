@@ -11,9 +11,9 @@
 -export([send/2]).
 -export([reply/2]).
 
--type network_request() :: #cthg_req{}.
+-type carthage_request() :: #cthg_req{}.
 
--export_type([network_request/0]).
+-export_type([carthage_request/0]).
 
 new({_Socket, _Transport} = SockInfo, Data, OnSend) ->
     #cthg_req{
@@ -41,7 +41,7 @@ new(SrcProc, ReplyTo, {_Socket, _Transport} = SockInfo, Data, OnSend, OnReply) -
     }.
 
 -spec get_peername(Request) ->  {ok, {Address, Port}} | {error, Reason} when
-        Request :: network_request(),
+        Request :: carthage_request(),
         Address :: inet:ip_address(),
         Port :: non_neg_integer(),
         Reason :: inet:posix().
@@ -51,18 +51,18 @@ get_peername(#cthg_req{sock = undefined}) ->
     undefined.
 
 -spec get_data(Request) -> term() when
-        Request :: network_request().
+        Request :: carthage_request().
 get_data(Req) ->
     Req#cthg_req.data.
 
--spec set_data(Data, Request) -> network_request() when
+-spec set_data(Data, Request) -> carthage_request() when
         Data :: term(),
-        Request :: network_request().
+        Request :: carthage_request().
 set_data(Data, Req) ->
     Req#cthg_req{data = Data}.
 
 -spec send(Request, Data) -> ok | {error, Reason} when
-        Request :: network_request(),
+        Request :: carthage_request(),
         Data :: binary() | iolist(),
         Reason :: closed | inet:posix().
 send(#cthg_req{sock = undefined}, _Data) ->
@@ -80,7 +80,7 @@ send(Req = #cthg_req{sock = {Socket, Transport}, on_send = OnSend}, Data) ->
     end.
 
 -spec reply(Request, Reply) -> ok when
-        Request :: network_request(),
+        Request :: carthage_request(),
         Reply :: term().
 reply(#cthg_req{reply_to = undefined}, _Reply) ->
     ok;

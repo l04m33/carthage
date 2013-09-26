@@ -16,6 +16,8 @@
 -export([terminate/2]).
 -export([code_change/3]).
 
+-type client_ident() :: pid() | {atom(), term()}.
+
 -record(client_state, {
         client_id,
         client_handler,
@@ -27,6 +29,24 @@
         transport,
         tags
        }).
+
+-spec call(ClientIdent, Data) -> term() when
+        ClientIdent :: client_ident(),
+        Data :: term().
+call(PID, Data) when is_pid(PID) ->
+    gen_server:call(PID, {self(), Data});
+call({ClientName, ClientID}, Data) when is_atom(ClientName) ->
+    PID = carthage_client_registry:where_is(ClientName, ClientID),
+    gen_server:call(PID, {self(), Data}).
+
+-spec cast(ClientIdent, Data) -> ok when
+        ClientIdent :: client_ident(),
+        Data :: term().
+cast(PID, Data) when is_pid(PID) ->
+    gen_server:cast(PID, {self(), Data});
+cast({ClientName, ClientID}, Data) when is_atom(ClientName) ->
+    PID = carthage_client_registry:where_is(ClientName, ClientID),
+    gen_server:cast(PID, {self(), Data}).
 
 start_link(Ref, ClientID, Socket, Transport, ClientHandler, Opts) ->
     proc_lib:start_link(?MODULE, init, [Ref, ClientID, Socket, Transport, ClientHandler, Opts]).
@@ -58,18 +78,6 @@ mutex_start(Ref, Socket, Transport, ClientHandler, Opts) ->
         Other ->
             Other
     end.
-
-call(PID, Data) when is_pid(PID) ->
-    gen_server:call(PID, {self(), Data});
-call({ClientName, ClientID}, Data) when is_atom(ClientName) ->
-    PID = carthage_client_registry:where_is(ClientName, ClientID),
-    gen_server:call(PID, {self(), Data}).
-
-cast(PID, Data) when is_pid(PID) ->
-    gen_server:cast(PID, {self(), Data});
-cast({ClientName, ClientID}, Data) when is_atom(ClientName) ->
-    PID = carthage_client_registry:where_is(ClientName, ClientID),
-    gen_server:cast(PID, {self(), Data}).
 
 init(StartRef, ClientID, Socket, Transport, ClientHandler, Opts0) ->
     erlang:process_flag(trap_exit, true),
