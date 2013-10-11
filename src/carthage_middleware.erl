@@ -7,6 +7,46 @@
 -export([on_reply/5]).
 -export([on_cast/4]).
 
+
+%% All these callbacks are optional. The call will be skipped
+%% if a callback function is not defined
+
+-callback on_request(Req, Env) -> {ok, NewReq, NewEnv} | {stop, Reason, NewEnv} when
+        Req :: carthage_req:carthage_request(),
+        Env :: carthage:env(),
+        NewReq :: carthage_req:carthage_request(),
+        NewEnv :: carthage:env(),
+        Reason :: term().
+
+-callback on_send(Data, Req, Env) -> {ok, NewData} | {stop, Reason} when
+        Data :: term(),
+        Req :: carthage_req:carthage_request(),
+        Env :: carthage:env(),
+        NewData :: term(),
+        Reason :: term().
+
+-callback on_call(Req, Env) -> {ok, NewReq, NewEnv} | {stop, Reason, NewEnv} when
+        Req :: carthage_req:carthage_request(),
+        Env :: carthage:env(),
+        NewReq :: carthage_req:carthage_request(),
+        NewEnv :: carthage:env(),
+        Reason :: term().
+
+-callback on_reply(Reply, Req, Env) -> {ok, NewReply} | {stop, Reason} when
+        Reply :: term(),
+        Req :: carthage_req:carthage_request(),
+        Env :: carthage:env(),
+        NewReply :: term(),
+        Reason :: term().
+
+-callback on_cast(Req, Env) -> {ok, NewReq, NewEnv} | {stop, Reason, NewEnv} when
+        Req :: carthage_req:carthage_request(),
+        Env :: carthage:env(),
+        NewReq :: carthage_req:carthage_request(),
+        NewEnv :: carthage:env(),
+        Reason :: term().
+
+
 -spec get_context(Env) -> term() when
         Env :: carthage:env().
 get_context(Env) ->

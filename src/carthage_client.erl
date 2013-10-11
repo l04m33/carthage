@@ -49,7 +49,7 @@
         Ret :: message_ret().
 
 %% Callbacks below are optional. These events will be silently 
-%% ignored if the corresponding callback function is not defined
+%% ignored if the corresponding callback functions are not defined
 
 -callback socket_closed(HandlerState) -> {ok, NewHandlerState} when
         HandlerState :: handler_state(),
