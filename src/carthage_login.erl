@@ -25,6 +25,9 @@
         Reason :: term(),
         ClientInput :: term().
 
+%% Callbacks below are optional. These events will be silently 
+%% ignored if the corresponding callback function is not defined
+
 -callback socket_closed(HandlerState) -> {ok, NewHandlerState} when
         HandlerState :: term(),
         NewHandlerState :: term().
@@ -134,7 +137,7 @@ handle_info({Ok, Socket, Data}, State = #login_state{socket = Socket, tags = {Ok
             Transport:close(Socket),
             {stop, Reason, State#login_state{env = Env}};
         {ok, Req, Env} ->
-            case LoginHandler:network_message(Req, HandlerState) of
+            try LoginHandler:network_message(Req, HandlerState) of
                 {ok, NHandlerState} ->
                     ok = Transport:setopts(Socket, [{active, once}]),
                     {noreply, State#login_state{handler_state = NHandlerState, env = Env}};
@@ -157,6 +160,11 @@ handle_info({Ok, Socket, Data}, State = #login_state{socket = Socket, tags = {Ok
                             error_logger:error_report([{"Failed to start client process", Other}])
                     end,
                     {stop, normal, State#login_state{env = Env}}
+            catch error : {socket_error, Reason} ->
+                %% NOTE: This error is thrown by carthage_req:send(...),
+                %%       in the case of trying to feed data into a drunk socket
+                NHandlerState = carthage_client:socket_error(LoginHandler, Reason, HandlerState, Transport, Socket),
+                {stop, Reason, State#login_state{handler_state = NHandlerState, env = Env}}
             end
     end;
 
@@ -165,13 +173,8 @@ handle_info({Closed, Socket}, State = #login_state{socket = Socket, tags = {_, C
         login_handler = LoginHandler,
         handler_state = HandlerState
     } = State,
-    case erlang:function_exported(LoginHandler, socket_closed, 1) of
-        true ->
-            {ok, NHandlerState} = LoginHandler:socket_closed(HandlerState),
-            {stop, normal, State#login_state{handler_state = NHandlerState}};
-        false ->
-            {stop, normal, State}
-    end;
+    NHandlerState = carthage_client:socket_closed(LoginHandler, HandlerState),
+    {stop, normal, State#login_state{handler_state = NHandlerState}};
 
 handle_info({Error, Socket, Reason}, State = #login_state{socket = Socket, tags = {_, _, Error}}) ->
     #login_state{
@@ -179,15 +182,8 @@ handle_info({Error, Socket, Reason}, State = #login_state{socket = Socket, tags 
         handler_state = HandlerState,
         transport = Transport
     } = State,
-    case erlang:function_exported(LoginHandler, socket_error, 2) of
-        true ->
-            {ok, NHandlerState} = LoginHandler:socket_error(Reason, HandlerState),
-            Transport:close(Socket),
-            {stop, normal, State#login_state{handler_state = NHandlerState}};
-        false ->
-            Transport:close(Socket),
-            {stop, normal, State}
-    end.
+    NHandlerState = carthage_client:socket_error(LoginHandler, Reason, HandlerState, Transport, Socket),
+    {stop, normal, State#login_state{handler_state = NHandlerState}}.
 
 terminate(Reason, State) ->
     #login_state{

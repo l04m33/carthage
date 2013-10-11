@@ -9,6 +9,9 @@
 -export([call/2]).
 -export([cast/2]).
 
+-export([socket_error/5]).
+-export([socket_closed/2]).
+
 -export([init/6]).
 -export([handle_info/2]).
 -export([handle_call/3]).
@@ -44,6 +47,9 @@
         Request :: carthage_req:carthage_request(),
         HandlerState :: handler_state(),
         Ret :: message_ret().
+
+%% Callbacks below are optional. These events will be silently 
+%% ignored if the corresponding callback function is not defined
 
 -callback socket_closed(HandlerState) -> {ok, NewHandlerState} when
         HandlerState :: handler_state(),
@@ -193,13 +199,18 @@ handle_info({Ok, Socket, Data}, State = #client_state{socket = Socket, tags = {O
             Transport:close(Socket),
             {stop, Reason, State#client_state{env = Env}};
         {ok, Req, Env} ->
-            case ClientHandler:network_message(Req, HandlerState) of
+            try ClientHandler:network_message(Req, HandlerState) of
                 {ok, NHandlerState} ->
                     ok = Transport:setopts(Socket, [{active, once}]),
                     {noreply, State#client_state{handler_state = NHandlerState, env = Env}};
                 {stop, Reason, NHandlerState} ->
                     Transport:close(Socket),
                     {stop, Reason, State#client_state{handler_state = NHandlerState, env = Env}}
+            catch error : {socket_error, Reason} ->
+                %% NOTE: This error is thrown by carthage_req:send(...),
+                %%       in the case of trying to feed data into a drunk socket
+                NHandlerState = socket_error(ClientHandler, Reason, HandlerState, Transport, Socket),
+                {stop, Reason, State#client_state{handler_state = NHandlerState, env = Env}}
             end
     end;
 
@@ -208,13 +219,8 @@ handle_info({Closed, Socket}, State = #client_state{socket = Socket, tags = {_, 
         client_handler = ClientHandler,
         handler_state = HandlerState
     } = State,
-    case erlang:function_exported(ClientHandler, socket_closed, 1) of
-        true ->
-            {ok, NHandlerState} = ClientHandler:socket_closed(HandlerState),
-            {stop, normal, State#client_state{handler_state = NHandlerState}};
-        false ->
-            {stop, normal, State}
-    end;
+    NHandlerState = socket_closed(ClientHandler, HandlerState),
+    {stop, normal, State#client_state{handler_state = NHandlerState}};
 
 handle_info({Error, Socket, Reason}, State = #client_state{socket = Socket, tags = {_, _, Error}}) ->
     #client_state{
@@ -222,15 +228,8 @@ handle_info({Error, Socket, Reason}, State = #client_state{socket = Socket, tags
         handler_state = HandlerState,
         transport = Transport
     } = State,
-    case erlang:function_exported(ClientHandler, socket_error, 2) of
-        true ->
-            {ok, NHandlerState} = ClientHandler:socket_error(Reason, HandlerState),
-            Transport:close(Socket),
-            {stop, normal, State#client_state{handler_state = NHandlerState}};
-        false ->
-            Transport:close(Socket),
-            {stop, normal, State}
-    end.
+    NHandlerState = socket_error(ClientHandler, Reason, HandlerState, Transport, Socket),
+    {stop, normal, State#client_state{handler_state = NHandlerState}}.
 
 handle_call({SrcProc, Data}, From, State) ->
     #client_state{
@@ -316,3 +315,22 @@ eject(ErrType, ErrCode, Stacktrace) ->
     error_logger:error_report([{ErrType, ErrCode}, {stacktrace, Stacktrace}]),
     exit({ErrType, ErrCode}).
 
+socket_error(ClientHandler, Reason, HandlerState, Transport, Socket) ->
+    case erlang:function_exported(ClientHandler, socket_error, 2) of
+        true ->
+            {ok, NHandlerState} = ClientHandler:socket_error(Reason, HandlerState),
+            Transport:close(Socket),
+            NHandlerState;
+        false ->
+            Transport:close(Socket),
+            HandlerState
+    end.
+
+socket_closed(ClientHandler, HandlerState) ->
+    case erlang:function_exported(ClientHandler, socket_closed, 1) of
+        true ->
+            {ok, NHandlerState} = ClientHandler:socket_closed(HandlerState),
+            NHandlerState;
+        false ->
+            HandlerState
+    end.

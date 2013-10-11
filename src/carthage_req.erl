@@ -61,22 +61,22 @@ get_data(Req) ->
 set_data(Data, Req) ->
     Req#cthg_req{data = Data}.
 
--spec send(Request, Data) -> ok | {error, Reason} when
+-spec send(Request, Data) -> ok | {stop, Reason} when
         Request :: carthage_request(),
         Data :: binary() | iolist(),
-        Reason :: closed | inet:posix().
+        Reason :: term().
 send(#cthg_req{sock = undefined}, _Data) ->
     ok;
 send(#cthg_req{sock = {Socket, Transport}, on_send = undefined}, Data) ->
-    Transport:send(Socket, Data);
+    do_send(Transport, Socket, Data);
 send(#cthg_req{sock = {Socket, Transport}, on_send = already_sent}, Data) ->
-    Transport:send(Socket, Data);
+    do_send(Transport, Socket, Data);
 send(Req = #cthg_req{sock = {Socket, Transport}, on_send = OnSend}, Data) ->
     case OnSend(Data, Req#cthg_req{on_send = already_sent}) of
         {stop, _Reason} = Stop ->
             Stop;
         {ok, NData} ->
-            Transport:send(Socket, NData)
+            do_send(Transport, Socket, NData)
     end.
 
 -spec reply(Request, Reply) -> ok when
@@ -88,7 +88,7 @@ reply(#cthg_req{reply_to = ReplyTo, on_reply = undefined}, Reply) ->
     gen_server:reply(ReplyTo, Reply),
     ok;
 reply(#cthg_req{on_reply = already_replied}, _Reply) ->
-    exit(already_replied);
+    error(already_replied);
 reply(Req = #cthg_req{reply_to = ReplyTo, on_reply = OnReply}, Reply) ->
     case OnReply(Reply, Req#cthg_req{on_reply = already_replied}) of
         {stop, _Reason} = Stop ->
@@ -97,3 +97,11 @@ reply(Req = #cthg_req{reply_to = ReplyTo, on_reply = OnReply}, Reply) ->
             gen_server:reply(ReplyTo, NReply)
     end.
 
+
+do_send(Transport, Socket, Data) ->
+    case Transport:send(Socket, Data) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            error({socket_error, Reason})
+    end.
