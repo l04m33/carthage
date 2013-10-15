@@ -50,8 +50,19 @@ start_link() ->
 login(ClientName, ClientID, ClientPID) when is_pid(ClientPID) ->
     TableName = ClientName,
     MirrorName = get_mirror_name(TableName),
-    [] = ets:lookup(TableName, ClientID),
-    [] = ets:lookup(MirrorName, ClientPID),
+    case ets:lookup(TableName, ClientID) of
+        [] ->
+            void;
+        [{_, OldPID} | _] ->
+            case erlang:is_process_alive(OldPID) of
+                true ->
+                    error(inconsistent_state);
+                false ->
+                    %% May be killed by the supervisor, clean it up
+                    ets:delete(TableName, ClientID),
+                    ets:delete(MirrorName, OldPID)
+            end
+    end,
     ets:insert(MirrorName, {ClientPID, ClientID}),
     ets:insert(TableName, {ClientID, ClientPID}),
     ok.
