@@ -1,12 +1,16 @@
 {application, carthage,
  [
-  {description, ""},
-  {vsn, "1"},
-  {registered, []},
-  {applications, [
-                  kernel,
-                  stdlib
-                 ]},
-  {mod, { carthage_app, []}},
+  {id, "Carthage"},
+  {description, "A generic TCP server"},
+  {vsn, "0.0.1"},
+  {registered,
+      [carthage_sup,
+       carthage_client_registry]},
+  {modules, []},
+  {applications,
+      [kernel,
+       stdlib,
+       ranch]},
+  {mod, {carthage_app, []}},
   {env, []}
  ]}.

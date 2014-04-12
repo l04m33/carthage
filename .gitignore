@@ -5,4 +5,5 @@ deps
 erl_crash.dump
 debug.config
 rel/carthage
-
+relx
+_rel
