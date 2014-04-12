@@ -46,13 +46,11 @@ start({LoginHandler, LoginOpts},
                 ok ->
                     ok;
                 Error ->
-                    supervisor:terminate_child(carthage_sup, ServerID),
-                    supervisor:delete_child(carthage_sup, ServerID),
+                    remove_server_instance(ServerID),
                     exit(Error)
             end;
         Error ->
-            supervisor:terminate_child(carthage_sup, ServerID),
-            supervisor:delete_child(carthage_sup, ServerID),
+            remove_server_instance(ServerID),
             exit(Error)
     end.
 
@@ -65,4 +63,8 @@ ensure_started(App) ->
         Other ->
             Other
     end.
+
+remove_server_instance(ServerID) ->
+    ok = supervisor:terminate_child(carthage_sup, ServerID),
+    ok = supervisor:delete_child(carthage_sup, ServerID).
 

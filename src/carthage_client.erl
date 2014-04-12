@@ -76,6 +76,16 @@
         tags
        }).
 
+-define(EJECT(ErrType, ErrCode),
+        ?EJECT(ErrType, ErrCode, erlang:get_stacktrace())).
+
+-define(EJECT(ErrType, ErrCode, Stacktrace),
+        begin
+            error_logger:error_report([{ErrType, ErrCode},
+                                       {stacktrace, Stacktrace}]),
+            exit({ErrType, ErrCode})
+        end).
+
 -spec call(ClientIdent, Data) -> term() when
         ClientIdent :: client_ident(),
         Data :: term().
@@ -133,7 +143,7 @@ init(StartRef, ClientID, Socket, Transport, ClientHandler, Opts0) ->
     try
         ok = Transport:setopts(Socket, [{active, once}])
     catch ErrType : ErrCode ->
-        eject(ErrType, ErrCode, erlang:get_stacktrace())
+        ?EJECT(ErrType, ErrCode)
     end,
 
     Middlewares = proplists:get_value(middlewares, Opts0, []),
@@ -164,7 +174,7 @@ init(StartRef, ClientID, Socket, Transport, ClientHandler, Opts0) ->
             catch ErrType3 : ErrCode3 ->
                 %% ClientHandler:init(...) already succeeded, need some clean-up here
                 terminate(login_error, State),
-                eject(ErrType3, ErrCode3, erlang:get_stacktrace())
+                ?EJECT(ErrType3, ErrCode3)
             end,
 
             gen_server:enter_loop(?MODULE, [], State);
@@ -173,7 +183,7 @@ init(StartRef, ClientID, Socket, Transport, ClientHandler, Opts0) ->
             {stop, Reason};
 
         {'EXIT', {ErrCode2, Stacktrace}} ->
-            eject(error, ErrCode2, Stacktrace);
+            ?EJECT(error, ErrCode2, Stacktrace);
 
         Other ->
             Other
@@ -310,10 +320,6 @@ terminate(Reason, State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-
-eject(ErrType, ErrCode, Stacktrace) ->
-    error_logger:error_report([{ErrType, ErrCode}, {stacktrace, Stacktrace}]),
-    exit({ErrType, ErrCode}).
 
 socket_error(ClientHandler, Reason, HandlerState, Transport, Socket) ->
     case erlang:function_exported(ClientHandler, socket_error, 2) of

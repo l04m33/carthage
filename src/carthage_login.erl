@@ -149,7 +149,8 @@ handle_info({Ok, Socket, Data}, State = #login_state{socket = Socket, tags = {Ok
                     FullOpts = [{client_input, ClientInput},
                                 {middlewares, Middlewares},
                                 {env, Env} | ClientOpts],
-                    case carthage_client:mutex_start(
+                    %% Match against '_' to make Dialyzer happy
+                    _ = case carthage_client:mutex_start(
                             StartRef, Socket, Transport, ClientHandler, FullOpts) of
                         {ok, ClientPID} ->
                             release_client_process(ClientPID, StartRef, Socket, Transport);

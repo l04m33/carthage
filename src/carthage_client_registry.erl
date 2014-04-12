@@ -94,7 +94,7 @@ handle_call({new_registry, ClientName}, _From, DBList) ->
             TableSpec = [named_table, {keypos, 1}, set, public, {read_concurrency, true}],
 
             TableCreated = try
-                ets:new(TableName, TableSpec),
+                TableName = ets:new(TableName, TableSpec),
                 true
             catch error : badarg ->
                 false
@@ -103,7 +103,7 @@ handle_call({new_registry, ClientName}, _From, DBList) ->
             case TableCreated of
                 true ->
                     try
-                        ets:new(MirrorName, TableSpec),
+                        MirrorName = ets:new(MirrorName, TableSpec),
                         NewDBList = [{TableName, MirrorName} | DBList],
                         {reply, ok, NewDBList}
                     catch error : badarg ->
