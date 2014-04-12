@@ -7,3 +7,4 @@ debug.config
 rel/carthage
 relx
 _rel
+*.plt
