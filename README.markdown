@@ -9,7 +9,7 @@ What is it?
 It's a TCP server framework written in Erlang. It mimics some web frameworks,
 featuring middleware etc.
 
-What's so good about it?
+What's so cool about it?
 ------------------------
 
 1. TCP streams are packed into messages for you. You can focus on processing
@@ -63,3 +63,7 @@ For examples, see `demo/*.erl`.
 
 [1]: http://www.erlang.org/doc/man/proplists.html
 
+License
+-------
+
+The MIT License: http://l04m33.mit-license.org/
